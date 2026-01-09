@@ -1,0 +1,49 @@
+#!/bin/bash
+set -euo pipefail
+
+APP_DIR="/opt/aws-photo-lab"
+APP_FILE="$APP_DIR/app.py"
+
+if ! command -v python3 >/dev/null 2>&1; then
+  echo "python3 is required but not found"
+  exit 1
+fi
+
+if ! command -v aws >/dev/null 2>&1; then
+  echo "aws CLI is required but not found"
+  exit 1
+fi
+
+install -d -m 0755 "$APP_DIR"
+
+cat > "$APP_FILE" <<'PY'
+${api_app_source}
+PY
+
+chmod 0755 "$APP_FILE"
+
+cat > /etc/systemd/system/aws-photo-lab.service <<'UNIT'
+[Unit]
+Description=AWS Photo Lab API
+After=network.target
+
+[Service]
+Type=simple
+User=ec2-user
+WorkingDirectory=/opt/aws-photo-lab
+Environment=TABLE_NAME=${table_name}
+Environment=BUCKET_NAME=${bucket_name}
+Environment=AWS_REGION=${region}
+Environment=APP_PORT=${app_port}
+Environment=PATH=/usr/local/bin:/usr/bin:/bin
+ExecStart=/usr/bin/python3 /opt/aws-photo-lab/app.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
+UNIT
+
+systemctl daemon-reload
+systemctl enable aws-photo-lab
+systemctl start aws-photo-lab
